@@ -165,6 +165,12 @@ On this machine the JVM cannot open the loopback socket Tomcat needs, and startu
 - 42 endpoints across 9 tags published at `/v3/api-docs`.
 - Unauthenticated `/leads`, `/projects`, `/channel-partners` all return 401; docs and actuator are
   public.
+- Cognito pool provisioned in `ap-south-1` by `scripts/provision-cognito.sh` and wired into `.env`
+  (which is gitignored). The pool has the `custom:tenantId` attribute, the four role groups, a
+  public app client with SRP and no secret, and one `TENANT_ADMIN` user carrying
+  `custom:tenantId`.
+- CORS preflight from the Vite dev origin returns 200 with the matching
+  `Access-Control-Allow-Origin`.
 
-Business flows behind authentication have not been exercised end-to-end, because that needs a real
-Cognito pool.
+Business flows behind authentication have not been exercised end-to-end: the first user is in
+`FORCE_CHANGE_PASSWORD`, and only the account owner has the temporary password.

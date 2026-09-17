@@ -1,0 +1,39 @@
+name: CI
+
+# Runs on every push and PR. Deliberately separate from deploy: a red build should be visible on
+# a branch, not discovered when main is already deploying.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Compile
+        run: ./mvnw -B -ntp clean compile
+
+      - name: Test
+        run: ./mvnw -B -ntp test
+
+      # Builds the image to a tarball rather than pushing, so a PR proves the container builds
+      # without needing registry credentials or polluting ECR with per-PR tags.
+      - name: Verify the container image builds
+        run: ./mvnw -B -ntp jib:buildTar -DskipTests

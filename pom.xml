@@ -20,6 +20,10 @@
 		<libphonenumber.version>9.0.19</libphonenumber.version>
 		<springdoc.version>2.8.14</springdoc.version>
 		<commons-validator.version>1.10.0</commons-validator.version>
+		<jib.version>3.5.1</jib.version>
+		<!-- Overridden by CI to point at ECR. Locally this builds an image into the Docker daemon. -->
+		<docker.image.prefix>leads-crm</docker.image.prefix>
+		<docker.architecture>amd64</docker.architecture>
 	</properties>
 
 	<dependencies>
@@ -151,6 +155,42 @@
 							<version>${lombok.version}</version>
 						</path>
 					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<!--	Container image, as in platform-api: Jib rather than a Dockerfile, so the image
+			        layers on dependencies and classes separately and a code-only change ships a
+			        few hundred KB instead of the whole fat jar.	-->
+			<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<version>${jib.version}</version>
+				<configuration>
+					<from>
+						<image>public.ecr.aws/amazoncorretto/amazoncorretto:21-al2023-jdk</image>
+						<platforms>
+							<platform>
+								<os>linux</os>
+								<!-- The build runner is amd64; override for an arm64 instance. -->
+								<architecture>${docker.architecture}</architecture>
+							</platform>
+						</platforms>
+					</from>
+					<to>
+						<image>${docker.image.prefix}/${project.artifactId}:${project.version}</image>
+						<tags>
+							<tag>latest</tag>
+						</tags>
+					</to>
+					<container>
+						<ports>
+							<port>8090</port>
+						</ports>
+						<!-- Container time is UTC; the app converts on the way out. -->
+						<environment>
+							<TZ>UTC</TZ>
+						</environment>
+					</container>
 				</configuration>
 			</plugin>
 		</plugins>

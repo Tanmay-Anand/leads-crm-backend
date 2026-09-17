@@ -1,0 +1,50 @@
+# Production profile.
+#
+# Everything that differs between machines arrives as an environment variable, set by
+# infra/prod/.env on the host. Nothing secret is committed.
+
+spring:
+  jpa:
+    # Still `update` rather than `validate`, because there are no migrations to validate against.
+    # See README.md § Deviations — this is the one place that decision has production weight: an
+    # entity change rewrites the schema on the next boot, with no review step.
+    hibernate:
+      ddl-auto: ${APP_DDL_AUTO:update}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  datasource:
+    # RDS. sslmode=require encrypts the connection without demanding a local truststore, which
+    # verify-full would; the database is in a private subnet reachable only from this host's
+    # security group, so the remaining risk is not worth shipping a CA bundle for.
+    url: jdbc:postgresql://${APP_DB_HOST}:5432/${APP_DB_NAME}?ApplicationName=leads-crm&currentSchema=crm&sslmode=require
+    username: ${APP_DB_USERNAME}
+    password: ${APP_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+server:
+  # Behind nginx, so the scheme and client IP arrive as forwarded headers. Without this, Spring
+  # builds redirect URLs as http:// and every audited action records nginx's IP as the caller.
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # The deploy workflow polls this and only completes when the DB is actually reachable.
+      show-details: never
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.leadrat.crm.leads: INFO
+    org.hibernate.SQL: WARN

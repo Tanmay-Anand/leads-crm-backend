@@ -1,0 +1,61 @@
+# Production stack for the single EC2 host.
+#
+# Mirrors platform-api's infra/<env>/docker-compose.yml, minus the database: Postgres is RDS now,
+# so this host runs only the app and nginx. Values come from infra/prod/.env, which is never
+# committed, and the database password is not in it — see below.
+#
+#   ./start.sh
+#
+# The deploy workflow runs exactly that over SSM.
+
+services:
+  api:
+    image: ${API_IMAGE}
+    container_name: leads-crm-api
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      APP_DB_HOST: ${APP_DB_HOST}
+      APP_DB_NAME: ${APP_DB_NAME}
+      APP_DB_USERNAME: ${APP_DB_USERNAME}
+      # Injected by start.sh, which reads it from Secrets Manager using the instance role. It is
+      # deliberately absent from .env so the password never sits on the filesystem.
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+      AWS_REGION: ${AWS_REGION}
+      AWS_COGNITO_USER_POOL_ID: ${AWS_COGNITO_USER_POOL_ID}
+      AWS_COGNITO_CLIENT_ID: ${AWS_COGNITO_CLIENT_ID}
+      # Unused when the frontend reaches the API through the Amplify proxy, since those requests
+      # are same-origin. Kept so switching to a direct CloudFront origin needs no file changes.
+      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-}
+    # Only nginx should reach the app.
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8090/leads-crm/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      # Spring Boot on a t3.small, now also opening a TLS connection to RDS.
+      start_period: 60s
+    logging:
+      # Without this the JSON log file grows until it fills the 20GB volume.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: leads-crm-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

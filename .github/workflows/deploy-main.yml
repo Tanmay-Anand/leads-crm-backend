@@ -1,0 +1,142 @@
+name: Deploy API to Production
+
+# Same shape as the reference deploy-main.yml: build, ship, then poll health until UP so a
+# broken deploy fails the workflow rather than sitting there looking green.
+#
+# Two deliberate differences from the reference, both explained in DEPLOYMENT.md:
+#
+#  - It authenticates to AWS with GitHub OIDC rather than a stored SSH private key, so there are
+#    no long-lived credentials in repository secrets at all.
+#  - The image is built here and pushed to ECR, rather than the host pulling source and running
+#    Maven itself. A t3.small should not be carrying a JDK, a Maven cache and a git checkout, and
+#    it means the host never needs repository access.
+
+on:
+  push:
+    branches: [main]
+  # Lets a failed deploy be retried without an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-leads-crm-prod
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: leads-crm-backend
+
+# Required for OIDC. `contents: read` is needed alongside it because setting any permission
+# resets the rest to none.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Tagged with the commit SHA as well as latest, so a rollback is a tag change rather than
+      # a rebuild of an older commit.
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          ./mvnw -B -ntp clean package -DskipTests
+          ./mvnw -B -ntp jib:build \
+            -Ddocker.image.prefix="${REGISTRY}" \
+            -Djib.to.image="${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            -Djib.to.tags=latest
+
+      - name: Deploy on the host via SSM
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          echo "Deploying ${IMAGE}"
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy ${GITHUB_SHA}" \
+            --parameters commands="[
+              \"set -euo pipefail\",
+              \"cd /opt/leads-crm\",
+              \"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${REGISTRY}\",
+              \"sed -i 's|^API_IMAGE=.*|API_IMAGE=${IMAGE}|' .env\",
+              \"docker compose --env-file .env pull api\",
+              \"./start.sh\",
+              \"docker image prune -f\"
+            ]" \
+            --query 'Command.CommandId' --output text)
+
+          echo "SSM command ${COMMAND_ID}"
+
+          # send-command is asynchronous; without this the workflow would report success before
+          # the container had even been pulled.
+          aws ssm wait command-executed \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${INSTANCE_ID}" || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
+            --query 'Status' --output text)
+
+          echo "--- host output ---"
+          aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
+            --query 'StandardOutputContent' --output text
+
+          if [ "${STATUS}" != "Success" ]; then
+            echo "--- host errors ---"
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
+              --query 'StandardErrorContent' --output text
+            echo "Deploy command finished with status ${STATUS}"
+            exit 1
+          fi
+
+      # The container starting is not the same as the service working: this only passes once
+      # Spring reports UP, which includes the database being reachable.
+      - name: Post-deploy health check
+        run: |
+          URL="${{ secrets.SERVICE_URL }}/leads-crm/actuator/health"
+          echo "Checking health at $URL"
+
+          for i in $(seq 1 30); do
+            RESPONSE=$(curl -s --max-time 5 "$URL" || echo "ERROR")
+            echo "Attempt $i: $RESPONSE"
+
+            if echo "$RESPONSE" | grep -q '"status":"UP"'; then
+              echo "Service is healthy"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Service did not become healthy"
+          exit 1

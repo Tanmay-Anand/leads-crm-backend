@@ -12,6 +12,10 @@
 
 set -euo pipefail
 
+# Git Bash on Windows rewrites any argument that looks like a Unix path into a Windows one, which
+# corrupts SSM parameter names and IAM ARNs before the CLI ever sees them. Harmless elsewhere.
+export MSYS_NO_PATHCONV=1
+
 REGION="${AWS_REGION:-ap-south-1}"
 POOL_NAME="${POOL_NAME:-leads-crm}"
 CLIENT_NAME="${CLIENT_NAME:-leads-crm-web}"
