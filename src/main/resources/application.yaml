@@ -43,6 +43,22 @@ springdoc:
     operations-sorter: alpha
     tags-sorter: alpha
 
+ai-sdk:
+  enabled: true
+  security:
+    jwt-secret: ${AI_SDK_JWT_SECRET}
+    jwt-expiry-minutes: 60
+    allowed-origins:
+      - ${AI_SDK_ALLOWED_ORIGIN:http://localhost:5173}
+  storage:
+    sqlite-path: ${AI_SDK_SQLITE_PATH:./ai-sdk-data/sdk-config.db}
+  llm:
+    api-key: ${OPENROUTER_API_KEY}
+    planner-model: ${AI_SDK_LLM_PLANNER_MODEL:anthropic/claude-sonnet-4.5}
+    summarizer-model: ${AI_SDK_LLM_SUMMARIZER_MODEL:anthropic/claude-sonnet-4.5}
+  license:
+    key: ${AI_SDK_LICENSE_KEY:}
+
 management:
   endpoints:
     web:

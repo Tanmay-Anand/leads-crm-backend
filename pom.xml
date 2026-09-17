@@ -117,6 +117,13 @@
 			<scope>provided</scope>
 		</dependency>
 
+		<!--	AI Query SDK	-->
+		<dependency>
+			<groupId>com.leadrat</groupId>
+			<artifactId>ai-query-sdk</artifactId>
+			<version>1.2.0</version>
+		</dependency>
+
 		<!--	Test	-->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
