@@ -112,6 +112,20 @@ fi
 DEPLOY_ROLE="${NAME}-github-deploy"
 
 # The trust policy is the security boundary: only this repository, only on the main branch.
+#
+# Two patterns, because GitHub changed the shape of the sub claim. It used to be
+#   repo:OWNER/REPO:ref:refs/heads/main
+# and is now
+#   repo:OWNER@<ownerId>/REPO@<repoId>:ref:refs/heads/main
+# where the numeric ids are immutable, so a repository that is renamed or deleted and recreated
+# cannot inherit the trust of the old one. Matching only the old form is why the first deploy
+# failed with "Not authorized to perform sts:AssumeRoleWithWebIdentity".
+#
+# The wildcards sit only where the numeric ids go, between @ and the next literal, so this cannot
+# be satisfied by a different owner or repository name.
+GITHUB_OWNER="${GITHUB_REPO%%/*}"
+GITHUB_NAME="${GITHUB_REPO##*/}"
+
 TRUST_POLICY=$(cat <<TRUST
 {
   "Version": "2012-10-17",
@@ -121,7 +135,12 @@ TRUST_POLICY=$(cat <<TRUST
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": {"token.actions.githubusercontent.com:aud": "sts.amazonaws.com"},
-      "StringLike": {"token.actions.githubusercontent.com:sub": "repo:${GITHUB_REPO}:ref:refs/heads/main"}
+      "StringLike": {
+        "token.actions.githubusercontent.com:sub": [
+          "repo:${GITHUB_REPO}:ref:refs/heads/main",
+          "repo:${GITHUB_OWNER}@*/${GITHUB_NAME}@*:ref:refs/heads/main"
+        ]
+      }
     }
   }]
 }
