@@ -1,0 +1,29 @@
+# Local Postgres for the Leads CRM API.
+#
+#   docker compose up -d
+#
+# The schema is created by Hibernate (`ddl-auto: update`) on first boot — there are no
+# migrations to run. See README.md for why this differs from the reference service.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: leads-crm-postgres
+    environment:
+      POSTGRES_DB: leads-crm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # 5433 rather than 5432: the existing builder-crm stack already binds 5432.
+      - "${APP_DB_PORT:-5433}:5432"
+    volumes:
+      - leads-crm-pgdata:/var/lib/postgresql/data
+      # Hibernate creates tables but not the schema itself.
+      - ./docker/init-schema.sql:/docker-entrypoint-initdb.d/01-init-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d leads-crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  leads-crm-pgdata:
