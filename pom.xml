@@ -117,11 +117,22 @@
 			<scope>provided</scope>
 		</dependency>
 
-		<!--	AI Query SDK	-->
+		<!--	AI Query SDK. Resolved via JitPack (see <repositories> below), not GitHub
+			Packages: GitHub Packages requires auth on every request even for a public
+			repo, and the pom's own published coordinates (com.leadrat:ai-query-sdk)
+			point at a distributionManagement URL the publish workflow never actually
+			used (it overrides github.owner/github.repo to the real repo at publish
+			time, and no version has ever been tagged/published there). JitPack builds
+			straight from the source repo instead - no auth, no publish step, and it
+			works off a commit SHA before any tag exists. Coordinates are always
+			com.github.<owner>:<repo>, independent of the source project's own
+			internal Maven coordinates. Pin to a tag once one exists; a commit SHA is
+			the safe default until then, since it cannot be redefined out from under
+			this build the way a floating branch could.	-->
 		<dependency>
-			<groupId>com.leadrat</groupId>
-			<artifactId>ai-query-sdk</artifactId>
-			<version>1.2.0</version>
+			<groupId>com.github.anshikleadrat</groupId>
+			<artifactId>sales-sdk</artifactId>
+			<version>140ed2ab24b3b819ccada61625acfb15f40bc236</version>
 		</dependency>
 
 		<!--	Test	-->
@@ -202,5 +213,15 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<!--	JitPack builds a public GitHub repo on demand and serves it as a Maven artifact -
+		no account, no publish workflow, no auth. Used for the AI Query SDK dependency
+		above; see that dependency's own comment for why this replaced GitHub Packages.	-->
+	<repositories>
+		<repository>
+			<id>jitpack.io</id>
+			<url>https://jitpack.io</url>
+		</repository>
+	</repositories>
 
 </project>

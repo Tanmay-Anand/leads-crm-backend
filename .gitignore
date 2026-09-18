@@ -16,5 +16,8 @@ target/
 .env
 .env.local
 
+### ai-sdk local secret store (JWT secret, setup OTP, admin password hash) ###
+ai-sdk-data/
+
 ### OS ###
 .DS_Store
