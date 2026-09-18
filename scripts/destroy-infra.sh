@@ -119,10 +119,13 @@ aws iam remove-role-from-instance-profile --instance-profile-name "$INSTANCE_ROL
 aws iam delete-instance-profile --instance-profile-name "$INSTANCE_ROLE" 2>/dev/null || true
 aws iam detach-role-policy --role-name "$INSTANCE_ROLE" --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore 2>/dev/null || true
 aws iam detach-role-policy --role-name "$INSTANCE_ROLE" --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly 2>/dev/null || true
+# Inline policies first: IAM refuses to delete a role that still holds one, and the || true here
+# swallows that failure, so the wrong order leaves the role behind without saying so.
+aws iam delete-role-policy --role-name "$INSTANCE_ROLE" --policy-name "${NAME}-db-secret" 2>/dev/null || true
+aws iam delete-role-policy --role-name "$INSTANCE_ROLE" --policy-name "${NAME}-cognito-admin" 2>/dev/null || true
 aws iam delete-role --role-name "$INSTANCE_ROLE" 2>/dev/null && echo "Deleted ${INSTANCE_ROLE}" || true
 
 DEPLOY_ROLE="${NAME}-github-deploy"
-aws iam delete-role-policy --role-name "$INSTANCE_ROLE" --policy-name "${NAME}-db-secret" 2>/dev/null || true
 aws iam delete-role-policy --role-name "$DEPLOY_ROLE" --policy-name "${NAME}-deploy" 2>/dev/null || true
 aws iam delete-role --role-name "$DEPLOY_ROLE" 2>/dev/null && echo "Deleted ${DEPLOY_ROLE}" || true
 
