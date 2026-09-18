@@ -67,6 +67,15 @@ Creates the ECR repository with a lifecycle policy, the instance role, the GitHu
 and deploy role, a security group, a t3.small running Amazon Linux 2023 with Docker installed, and
 an Elastic IP. Prints the values you need next.
 
+It also runs `grant-cognito-admin.sh`, which lets the instance role call the Cognito admin APIs on
+the pool from step 1 — without it every user create, enable/disable and password reset fails with
+`AccessDeniedException` at the moment someone clicks the button, not at boot. Run that script on
+its own to add the policy to a host that was provisioned before it existed:
+
+```bash
+AWS_PROFILE=personal ./scripts/grant-cognito-admin.sh
+```
+
 **3. Database:**
 
 ```bash

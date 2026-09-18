@@ -93,6 +93,13 @@ if ! aws iam get-instance-profile --instance-profile-name "$INSTANCE_ROLE" >/dev
   sleep 12
 fi
 
+# ── Cognito admin ──────────────────────────────────────────────────────────────
+# The API provisions its own users, so the role needs the Cognito admin APIs on top of the two
+# managed policies above. Its own script because an already-provisioned host needs this policy
+# without a full re-provision; it skips itself if the pool does not exist yet.
+
+bash "$(dirname "$0")/grant-cognito-admin.sh"
+
 # ── GitHub OIDC ───────────────────────────────────────────────────────────────
 # Lets the deploy workflow assume a role using a short-lived GitHub-signed token, so there are no
 # AWS access keys stored in the repository at all.
