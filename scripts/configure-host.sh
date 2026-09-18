@@ -58,8 +58,12 @@ AI_SDK_JWT_SECRET="${AI_SDK_JWT_SECRET:-$(openssl rand -hex 32)}"
 OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unset-ai-query-disabled}"
 
 # The SDK's own CORS check, which is separate from APP_CORS_ORIGINS and defaults to
-# http://localhost:5173. Set it to the Amplify origin to use the widget from the deployed UI.
+# http://localhost:5173. Set it to the deployed frontend's origin to use the widget from it.
 AI_SDK_ALLOWED_ORIGIN="${AI_SDK_ALLOWED_ORIGIN:-}"
+
+# Blank unless the caller pins one; WebSecurityConfig supplies the defaults. Declared here
+# because `set -u` would abort on an unbound variable when the .env heredoc expands it.
+APP_CORS_ORIGINS="${APP_CORS_ORIGINS:-}"
 
 echo "Host:     ${INSTANCE_ID}"
 echo "Database: ${ENDPOINT}"
@@ -80,9 +84,11 @@ AWS_REGION=${REGION}
 AWS_COGNITO_USER_POOL_ID=${POOL_ID}
 AWS_COGNITO_CLIENT_ID=${CLIENT_ID}
 
-# Empty while the frontend reaches the API through the Amplify proxy: those requests are
-# same-origin, so CORS never applies. Set it if you move to a direct CloudFront origin.
-APP_CORS_ORIGINS=
+# Left blank on purpose: WebSecurityConfig's built-in patterns already cover the deployed
+# frontend and its preview deployments. Pass APP_CORS_ORIGINS to this script to pin a different
+# list. It does NOT become irrelevant behind a same-origin proxy — writes still carry an Origin
+# header, so an allow-list that matches nothing fails every save with a bare 403.
+APP_CORS_ORIGINS=${APP_CORS_ORIGINS}
 
 # ai-sdk. The first two are mandatory: application.yaml defaults neither, so the container
 # exits on boot if either is missing, and nginx then answers 502 with no upstream.

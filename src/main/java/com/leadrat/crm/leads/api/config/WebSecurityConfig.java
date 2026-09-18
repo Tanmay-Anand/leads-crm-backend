@@ -1,5 +1,7 @@
 package com.leadrat.crm.leads.api.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,13 +35,44 @@ import java.util.List;
 @EnableMethodSecurity
 public class WebSecurityConfig {
 
-    private final List<String> allowedOrigins;
+    private static final Logger log = LoggerFactory.getLogger(WebSecurityConfig.class);
 
-    public WebSecurityConfig(@Value("${app.cors.allowed-origins}") String allowedOrigins) {
-        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+    /**
+     * Where the browser is allowed to call this API from when nothing is configured.
+     *
+     * <p>The default lives here rather than in {@code application.yaml} because an empty
+     * allow-list is not a safe fallback: it rejects every request that carries an {@code Origin},
+     * and browsers attach one to same-origin POST/PUT/PATCH/DELETE even though they omit it on
+     * same-origin GET. A blank {@code APP_CORS_ORIGINS} therefore reads as "the site loads but
+     * nothing can be saved", with a bare 403 and no clue why. Defaulting in code means the
+     * variable can be unset, or blanked by a host {@code .env} being rewritten, without that
+     * happening.
+     *
+     * <p>These are matched as patterns, so Vercel's per-deployment hostnames
+     * ({@code leads-crm-frontend-<hash>-<scope>.vercel.app}) are covered by the same entry as the
+     * production one. Pinning exact origins would 403 every preview deploy.
+     */
+    private static final List<String> DEFAULT_ALLOWED_ORIGIN_PATTERNS = List.of(
+            // Vite picks the next free port when one is taken, so the usual range is allowed.
+            "http://localhost:517*", "http://127.0.0.1:517*",
+            // Production and every preview/branch deployment of the frontend.
+            "https://leads-crm-frontend-*.vercel.app");
+
+    private final List<String> allowedOriginPatterns;
+
+    public WebSecurityConfig(@Value("${app.cors.allowed-origins:}") String allowedOrigins) {
+        List<String> configured = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList();
+
+        if (configured.isEmpty()) {
+            log.info("app.cors.allowed-origins is not set; allowing the built-in defaults {}",
+                    DEFAULT_ALLOWED_ORIGIN_PATTERNS);
+            this.allowedOriginPatterns = DEFAULT_ALLOWED_ORIGIN_PATTERNS;
+        } else {
+            this.allowedOriginPatterns = configured;
+        }
     }
 
     @Bean
@@ -65,7 +98,10 @@ public class WebSecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins);
+        // Patterns rather than exact origins: setAllowedOriginPatterns accepts a literal origin
+        // unchanged, so this stays a superset of the old behaviour while also matching the
+        // wildcard hosts Vercel generates per deployment.
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
         configuration.setAllowedMethods(List.of("*"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
