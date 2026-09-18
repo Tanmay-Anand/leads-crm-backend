@@ -66,7 +66,12 @@ public class TenantSeedingService {
                 // Named individually, not just "some role exists": a tenant already fully seeded
                 // before these job-function roles were added would otherwise never see this branch
                 // run again, since every other condition above is already satisfied.
-                || !roleRepository.existsByTenantAndNameIgnoreCase(tenantId, "Sales Agent");
+                || !roleRepository.existsByTenantAndNameIgnoreCase(tenantId, "Sales Agent")
+                // Same reasoning, the other direction: a tenant seeded before Platform Admin/User
+                // stopped being created still has those rows, and every condition above is already
+                // satisfied for it too (it has Sales Agent from the fix above), so this needs its
+                // own explicit check to force seedDefaults to run and retire them.
+                || roleRepository.existsByTenantAndNameIgnoreCase(tenantId, "Platform Admin");
 
         if (needsSeeding) {
             log.info("[TenantSeeding] Seeding defaults for tenant {}", tenantId);
@@ -107,6 +112,26 @@ public class TenantSeedingService {
         saveSystemRole(tenantId, "Tenant Admin", PermissionService.deriveDefaultPermissions(UserRole.TENANT_ADMIN));
         saveSystemRole(tenantId, "Tenant User", PermissionService.deriveDefaultPermissions(UserRole.TENANT_USER));
         seedJobFunctionRoles(tenantId);
+        retireCrossTenantStaffRoles(tenantId);
+    }
+
+    /**
+     * Removes "Platform Admin"/"Platform User" role rows seeded before this method existed - a
+     * tenant seeded by an earlier version of this app has them sitting in its role list, and
+     * fixing {@link #seedDefaultRoles} to stop creating new ones does nothing for rows already
+     * there. No backfill script, same as everywhere else in this class: this runs as part of the
+     * ordinary lazy-seeding path, so an already-seeded tenant self-heals on its next master-data
+     * read instead of needing a one-off migration against production data directly.
+     */
+    private void retireCrossTenantStaffRoles(UUID tenantId) {
+        for (String name : List.of("Platform Admin", "Platform User")) {
+            roleRepository.findByTenantAndNameIgnoreCase(tenantId, name)
+                    .filter(Role::isSystem)
+                    .ifPresent(role -> {
+                        role.softDelete();
+                        roleRepository.save(role);
+                    });
+        }
     }
 
     /**
