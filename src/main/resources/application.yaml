@@ -73,9 +73,11 @@ aws:
 
 app:
   cors:
-    # Vite picks the next free port when one is taken, so the usual range is allowed
-    # rather than a single port.
-    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175}
+    # Deliberately blank. The real default is DEFAULT_ALLOWED_ORIGIN_PATTERNS in
+    # WebSecurityConfig, which applies whenever this resolves to nothing — including when
+    # APP_CORS_ORIGINS is set but empty, which a YAML default here could not catch. Set this to a
+    # comma-separated list of origins or wildcard patterns to override it entirely.
+    allowed-origins: ${APP_CORS_ORIGINS:}
 
 logging:
   level:
