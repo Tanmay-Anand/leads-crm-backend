@@ -183,9 +183,9 @@
 			the safe default until then, since it cannot be redefined out from under
 			this build the way a floating branch could.	-->
 		<dependency>
-			<groupId>com.leadrat</groupId>
-			<artifactId>ai-query-sdk</artifactId>
-			<version>1.3.0</version>
+			<groupId>com.github.anshikleadrat</groupId>
+			<artifactId>sales-sdk</artifactId>
+			<version>0abb2b9ba3d6623aff863c83d8b8f59a9412f892</version>
 		</dependency>
 
 		<!--	Test	-->
