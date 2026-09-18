@@ -47,6 +47,7 @@ ai-sdk:
   enabled: true
   security:
     jwt-secret: ${AI_SDK_JWT_SECRET}
+    admin-password: ${AI_SDK_ADMIN_PASSWORD:}
     jwt-expiry-minutes: 60
     allowed-origins:
       - ${AI_SDK_ALLOWED_ORIGIN:http://localhost:5173}
