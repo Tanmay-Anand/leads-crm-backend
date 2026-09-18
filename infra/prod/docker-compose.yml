@@ -34,10 +34,11 @@ services:
       AI_SDK_JWT_SECRET: ${AI_SDK_JWT_SECRET}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       AI_SDK_ALLOWED_ORIGIN: ${AI_SDK_ALLOWED_ORIGIN:-}
-      AI_SDK_LLM_PLANNER_MODEL: ${AI_SDK_LLM_PLANNER_MODEL:-}
-      AI_SDK_LLM_SUMMARIZER_MODEL: ${AI_SDK_LLM_SUMMARIZER_MODEL:-}
-      AI_SDK_LICENSE_KEY: ${AI_SDK_LICENSE_KEY:-}
       AI_SDK_SQLITE_PATH: /data/ai-sdk/sdk-config.db
+      # The model names and the licence key are deliberately NOT forwarded. They are defaulted in
+      # application.yaml, and an absent key here would arrive as an empty string, which Spring
+      # treats as a set value and so silently overrides the default with "". Add one back only
+      # alongside a real value in .env.
     volumes:
       # The ai-sdk admin password, set once through the /ai-sdk/setup OTP exchange, lives in this
       # SQLite file. Inside the container it would be destroyed by every deploy, which silently
