@@ -5,6 +5,7 @@ import com.leadrat.crm.leads.api.cognito.DefaultCognitoService;
 import com.leadrat.crm.leads.api.cognito.NoopCognitoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -23,6 +24,7 @@ import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityPr
  */
 @Slf4j
 @Configuration
+@EnableConfigurationProperties(CognitoProperties.class)
 @RequiredArgsConstructor
 public class CognitoClientConfiguration {
 
