@@ -31,11 +31,18 @@ public interface UserRepository extends TenantAwareRepository<User> {
      * UserProvisioningService}). Callers are responsible for their own tenant check on the
      * result - this method deliberately does not filter by tenant, since JIT provisioning must
      * find a user regardless of which tenant's context happens to be active when it runs.
+     *
+     * <p>{@code id} is cast to {@code text} on both sides: every aggregate root's primary key is
+     * declared {@code UUID} in Java but stored as {@code varchar} in Postgres
+     * ({@code AbstractAggregateRoot}'s {@code @JdbcTypeCode(Types.VARCHAR)}), and unlike a derived
+     * or JPQL query, a native query does not run the parameter through that same conversion - the
+     * driver binds a bare {@code UUID} parameter as the native {@code uuid} type, and Postgres has
+     * no {@code varchar = uuid} operator.
      */
-    @Query(value = "select * from crm.\"user\" where id = :id", nativeQuery = true)
+    @Query(value = "select * from crm.\"user\" where id = CAST(:id AS text)", nativeQuery = true)
     Optional<User> findAnyById(@Param("id") UUID id);
 
-    @Query(value = "select * from crm.\"user\" where tenant = :tenant and lower(email) = lower(:email)",
+    @Query(value = "select * from crm.\"user\" where tenant = CAST(:tenant AS text) and lower(email) = lower(:email)",
             nativeQuery = true)
     Optional<User> findAnyByTenantAndEmail(@Param("tenant") UUID tenant, @Param("email") String email);
 }
