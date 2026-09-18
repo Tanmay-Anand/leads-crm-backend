@@ -96,6 +96,12 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!--	Mail — meeting reminder emails	-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!--	Phone number normalisation — LeadIdentity	-->
 		<dependency>
 			<groupId>com.googlecode.libphonenumber</groupId>
@@ -177,9 +183,9 @@
 			the safe default until then, since it cannot be redefined out from under
 			this build the way a floating branch could.	-->
 		<dependency>
-			<groupId>com.github.anshikleadrat</groupId>
-			<artifactId>sales-sdk</artifactId>
-			<version>140ed2ab24b3b819ccada61625acfb15f40bc236</version>
+			<groupId>com.leadrat</groupId>
+			<artifactId>ai-query-sdk</artifactId>
+			<version>1.3.0</version>
 		</dependency>
 
 		<!--	Test	-->
