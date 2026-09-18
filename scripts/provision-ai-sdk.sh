@@ -33,14 +33,14 @@ done
 # relationship to enable: leads-crm-backend's own README ("Deviations §4") says Lead.projectId
 # is a plain UUID column with no JPA association, so there is nothing for the SDK's Criteria-API
 # traversal to walk there - a project reaches the model as a second query target instead
-# (AiSdkQueryClient in pre-meeting-briefing-assistant), never through this relationship list.
+# (whichever client is calling /ai-sdk/query), never through this relationship list.
 TARGET_ENTITIES=("Lead" "Project" "ChannelPartner" "LeadNote" "LeadStatus"
                   "CustomTemperature" "CustomTag" "CustomSourceCategory")
 
-# Never exposed to the LLM, regardless of which entity they sit on - situation, not PII. Masking
-# mobile here does not lose WhatsApp-chat grounding: pre-meeting-briefing-assistant's
-# LeadsCrmAdapter sends the lead's phone number as an explicit query target field instead of
-# leaving the SDK to find it in these (masked) exposed fields.
+# Never exposed to the LLM, regardless of which entity they sit on - situation, not PII. This
+# also means the SDK's own WhatsApp-chat-context feature cannot resolve a phone number from
+# these (masked) exposed fields on its own - a caller has to pass one explicitly as a query
+# target's phone field, sourced from somewhere with real access to it, for that feature to work.
 SENSITIVE_FIELDS=("mobile" "alternateMobile" "email" "mobileNormalized" "tenant"
                    "createdByUserId" "lastModifiedByUserId")
 
