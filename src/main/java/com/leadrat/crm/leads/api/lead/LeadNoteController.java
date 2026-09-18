@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,6 +35,7 @@ public class LeadNoteController {
 
     @Operation(summary = "Get the notes on a lead, newest first")
     @GetMapping
+    @PreAuthorize("@permissionService.check('view', 'leads')")
     public ResponseEntity<Page<LeadNoteDto>> getByLead(
             @PathVariable UUID leadId,
             @ParameterObject @PageableDefault(sort = "created", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -42,6 +44,7 @@ public class LeadNoteController {
 
     @Operation(summary = "Add a note to a lead")
     @PostMapping
+    @PreAuthorize("@permissionService.check('update', 'leads')")
     public ResponseEntity<LeadNoteDto> add(@PathVariable UUID leadId,
                                            @Valid @RequestBody LeadNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(leadNoteService.add(leadId, request));
@@ -49,6 +52,7 @@ public class LeadNoteController {
 
     @Operation(summary = "Update a note")
     @PutMapping("/{noteId}")
+    @PreAuthorize("@permissionService.check('update', 'leads')")
     public ResponseEntity<LeadNoteDto> update(@PathVariable UUID leadId,
                                               @PathVariable UUID noteId,
                                               @Valid @RequestBody LeadNoteRequest request) {
@@ -57,6 +61,7 @@ public class LeadNoteController {
 
     @Operation(summary = "Soft-delete a note")
     @DeleteMapping("/{noteId}")
+    @PreAuthorize("@permissionService.check('update', 'leads')")
     public ResponseEntity<Void> delete(@PathVariable UUID leadId, @PathVariable UUID noteId) {
         leadNoteService.delete(leadId, noteId);
         return ResponseEntity.noContent().build();

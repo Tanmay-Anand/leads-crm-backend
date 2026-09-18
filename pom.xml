@@ -21,10 +21,24 @@
 		<springdoc.version>2.8.14</springdoc.version>
 		<commons-validator.version>1.10.0</commons-validator.version>
 		<jib.version>3.5.1</jib.version>
+		<aws-sdk.version>2.29.29</aws-sdk.version>
+		<caffeine.version>3.1.8</caffeine.version>
 		<!-- Overridden by CI to point at ECR. Locally this builds an image into the Docker daemon. -->
 		<docker.image.prefix>leads-crm</docker.image.prefix>
 		<docker.architecture>amd64</docker.architecture>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>software.amazon.awssdk</groupId>
+				<artifactId>bom</artifactId>
+				<version>${aws-sdk.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<dependencies>
 
@@ -115,6 +129,39 @@
 			<artifactId>annotations</artifactId>
 			<version>26.0.2</version>
 			<scope>provided</scope>
+		</dependency>
+
+		<!--	AWS Cognito admin API — user provisioning for the User Management module.
+			Excludes the SDK's default async HTTP clients (netty-nio-client pulls in Netty,
+			apache-client pulls in Apache HttpClient) in favour of the lighter synchronous
+			url-connection-client below, since this app only ever makes occasional admin
+			calls, never high-throughput ones.	-->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>cognitoidentityprovider</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>netty-nio-client</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>apache-client</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>url-connection-client</artifactId>
+		</dependency>
+
+		<!--	Permission-check caching (PermissionCache) - held directly, not through
+			spring-boot-starter-cache, since eviction needs tenant-prefix eviction that
+			Spring's Cache abstraction (evict(key)/clear() only) cannot express.	-->
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+			<version>${caffeine.version}</version>
 		</dependency>
 
 		<!--	AI Query SDK. Resolved via JitPack (see <repositories> below), not GitHub

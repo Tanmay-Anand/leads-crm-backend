@@ -1,5 +1,6 @@
 package com.leadrat.crm.leads.api.project;
 
+import com.leadrat.crm.leads.api.auth.annotations.AuthenticatedOnly;
 import com.leadrat.crm.leads.api.core.EnumDto;
 import com.leadrat.crm.leads.api.search.SearchResource;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,6 +47,7 @@ public class ProjectController {
             description = "Supports free-text search via q (minimum 2 characters) and a date range via fromDate "
                     + "and toDate. Text search and date range compose freely.")
     @GetMapping
+    @PreAuthorize("@permissionService.check('view', 'projects')")
     public ResponseEntity<Page<ProjectDto>> getAll(
             @Parameter(description = "Free-text search term, minimum 2 characters.")
             @RequestParam(required = false) String q,
@@ -65,6 +68,7 @@ public class ProjectController {
 
     @Operation(summary = "Search projects with structured filters")
     @PostMapping("/search")
+    @PreAuthorize("@permissionService.check('view', 'projects')")
     public ResponseEntity<Page<ProjectDto>> search(
             @ParameterObject @PageableDefault(sort = "created", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestBody @Valid List<SearchResource> resources) {
@@ -74,18 +78,21 @@ public class ProjectController {
     @Operation(summary = "Get all projects as id and name pairs",
             description = "Feeds the project picker on the lead form and the project filter dropdown.")
     @GetMapping("/names")
+    @PreAuthorize("@permissionService.check('view', 'projects')")
     public ResponseEntity<List<ProjectNamesDto>> getNames() {
         return ResponseEntity.ok(projectService.getNames());
     }
 
     @Operation(summary = "Get project counts for the list header")
     @GetMapping("/stats")
+    @PreAuthorize("@permissionService.check('view', 'projects')")
     public ResponseEntity<ProjectStatsDto> getStats() {
         return ResponseEntity.ok(projectService.getStats());
     }
 
     @Operation(summary = "Get the enum options the project form needs")
     @GetMapping("/enums")
+    @AuthenticatedOnly
     public ResponseEntity<Map<String, List<EnumDto>>> getEnums() {
         return ResponseEntity.ok(Map.of(
                 "projectStages", Arrays.stream(ProjectStage.values()).map(EnumDto::of).toList(),
@@ -99,6 +106,7 @@ public class ProjectController {
             @ApiResponse(responseCode = "404", description = "Project not found")
     })
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionService.check('view', 'projects')")
     public ResponseEntity<ProjectDto> get(@PathVariable UUID id) {
         return ResponseEntity.ok(projectService.get(id));
     }
@@ -109,12 +117,14 @@ public class ProjectController {
             @ApiResponse(responseCode = "409", description = "A project with that name already exists")
     })
     @PostMapping
+    @PreAuthorize("@permissionService.check('add', 'projects')")
     public ResponseEntity<ProjectDto> save(@Valid @RequestBody ProjectDto request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(projectService.save(request));
     }
 
     @Operation(summary = "Update an existing project")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionService.check('update', 'projects')")
     public ResponseEntity<ProjectDto> edit(@PathVariable UUID id, @Valid @RequestBody ProjectDto request) {
         return ResponseEntity.ok(projectService.edit(id, request));
     }
@@ -122,6 +132,7 @@ public class ProjectController {
     @Operation(summary = "Soft-delete a project",
             description = "Refused with 409 while active leads still reference the project.")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionService.check('delete', 'projects')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         projectService.delete(id);
         return ResponseEntity.noContent().build();

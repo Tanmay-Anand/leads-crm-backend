@@ -39,6 +39,7 @@ import com.leadrat.crm.leads.api.temperature.CustomTemperature;
 import com.leadrat.crm.leads.api.temperature.CustomTemperatureRepository;
 import com.leadrat.crm.leads.api.temperature.dto.TemperatureDto;
 import com.leadrat.crm.leads.api.tenant.TenantAware;
+import com.leadrat.crm.leads.api.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -77,6 +78,7 @@ public class LeadServiceImpl implements LeadService {
     private final CustomSourceTypeRepository sourceTypeRepository;
     private final ProjectRepository projectRepository;
     private final ChannelPartnerRepository channelPartnerRepository;
+    private final UserRepository userRepository;
     private final FilterFieldRegistry<Lead, LeadFilterField> leadFilterFieldRegistry;
     private final TenantSeedingService tenantSeedingService;
     private final TenantAware tenantAware;
@@ -200,11 +202,12 @@ public class LeadServiceImpl implements LeadService {
                     .stream().map(p -> new FilterOptionDto(p.getId().toString(), p.getName()))
                     .toList();
 
-            // There is no user table in this service, so the owner dropdown is built from the
-            // names already denormalised onto leads. A user who has never held a lead is not a
-            // useful filter value anyway.
-            case "users" -> leadRepository.findDistinctAssignees(tenantId).stream()
-                    .map(row -> new FilterOptionDto(String.valueOf(row[0]), String.valueOf(row[1])))
+            // [PORTED, RBAC Phase 5] Was built from names denormalised onto leads (a user who
+            // had never held a lead was not a useful filter value anyway) - now a real lookup
+            // now that a user table exists. All three optionsSource = "users" fields
+            // (PRIMARY_OWNER, SECONDARY_OWNER, CREATED_BY) improve at once.
+            case "users" -> userRepository.findByTenantAndIsActiveTrueOrderByFirstNameAscLastNameAsc(tenantId)
+                    .stream().map(u -> new FilterOptionDto(u.getId().toString(), u.getDisplayName()))
                     .toList();
 
             case "assignmentMethods" -> FilterOptions.ofEnum(AssignmentMethod.values());

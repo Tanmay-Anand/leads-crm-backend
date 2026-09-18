@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,6 +33,7 @@ public class SourceTypeController {
 
     @Operation(summary = "Get all source types for the current tenant")
     @GetMapping
+    @PreAuthorize("@permissionService.check('view', 'master-data/sources')")
     public ResponseEntity<List<SourceTypeDto>> getAll(
             @Parameter(description = "Restrict to the source types under this category.")
             @RequestParam(required = false) UUID parentId) {
@@ -40,18 +42,21 @@ public class SourceTypeController {
 
     @Operation(summary = "Get a source type by ID")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionService.check('view', 'master-data/sources')")
     public ResponseEntity<SourceTypeDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(SourceTypeDto.from(sourceTypeService.getById(id)));
     }
 
     @Operation(summary = "Create a new source type")
     @PostMapping
+    @PreAuthorize("@permissionService.check('add', 'master-data/sources')")
     public ResponseEntity<SourceTypeDto> add(@Valid @RequestBody SourceTypeRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(SourceTypeDto.from(sourceTypeService.add(request)));
     }
 
     @Operation(summary = "Update a source type")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionService.check('update', 'master-data/sources')")
     public ResponseEntity<SourceTypeDto> update(@PathVariable UUID id,
                                                 @Valid @RequestBody SourceTypeRequest request) {
         return ResponseEntity.ok(SourceTypeDto.from(sourceTypeService.update(id, request)));
@@ -59,6 +64,7 @@ public class SourceTypeController {
 
     @Operation(summary = "Soft-delete a source type")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionService.check('delete', 'master-data/sources')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         sourceTypeService.delete(id);
         return ResponseEntity.noContent().build();

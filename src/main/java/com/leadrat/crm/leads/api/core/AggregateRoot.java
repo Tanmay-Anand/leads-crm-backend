@@ -11,6 +11,7 @@ import org.springframework.util.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Aggregate root with Spring Data domain-event support.
@@ -29,6 +30,10 @@ public abstract class AggregateRoot<A extends AggregateRoot<A>> extends Abstract
 
     protected AggregateRoot() {
         super(null);
+    }
+
+    protected AggregateRoot(UUID givenId) {
+        super(givenId);
     }
 
     @DomainEvents

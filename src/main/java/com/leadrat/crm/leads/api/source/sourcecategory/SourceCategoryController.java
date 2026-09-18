@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,18 +31,21 @@ public class SourceCategoryController {
 
     @Operation(summary = "Get all source categories for the current tenant")
     @GetMapping
+    @PreAuthorize("@permissionService.check('view', 'master-data/sources')")
     public ResponseEntity<List<SourceCategoryDto>> getAll() {
         return ResponseEntity.ok(sourceCategoryService.getAll().stream().map(SourceCategoryDto::from).toList());
     }
 
     @Operation(summary = "Get a source category by ID")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionService.check('view', 'master-data/sources')")
     public ResponseEntity<SourceCategoryDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(SourceCategoryDto.from(sourceCategoryService.getById(id)));
     }
 
     @Operation(summary = "Create a new source category")
     @PostMapping
+    @PreAuthorize("@permissionService.check('add', 'master-data/sources')")
     public ResponseEntity<SourceCategoryDto> add(@Valid @RequestBody SourceCategoryRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SourceCategoryDto.from(sourceCategoryService.add(request)));
@@ -49,6 +53,7 @@ public class SourceCategoryController {
 
     @Operation(summary = "Update a source category")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionService.check('update', 'master-data/sources')")
     public ResponseEntity<SourceCategoryDto> update(@PathVariable UUID id,
                                                     @Valid @RequestBody SourceCategoryRequest request) {
         return ResponseEntity.ok(SourceCategoryDto.from(sourceCategoryService.update(id, request)));
@@ -56,6 +61,7 @@ public class SourceCategoryController {
 
     @Operation(summary = "Soft-delete a source category")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionService.check('delete', 'master-data/sources')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         sourceCategoryService.delete(id);
         return ResponseEntity.noContent().build();

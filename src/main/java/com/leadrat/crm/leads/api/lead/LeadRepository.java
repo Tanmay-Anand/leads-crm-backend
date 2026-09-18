@@ -75,13 +75,4 @@ public interface LeadRepository extends TenantAwareRepository<Lead> {
             ORDER BY l.channelPartnerName
             """)
     List<Object[]> findDistinctChannelPartners(@Param("tenant") UUID tenant);
-
-    /** Same idea, for the assigned-owner dropdown. */
-    @Query("""
-            SELECT DISTINCT l.assignedTo, l.assignedToUserName FROM Lead l
-            WHERE l.tenant = :tenant AND l.isActive = true
-              AND l.assignedTo IS NOT NULL AND l.assignedToUserName IS NOT NULL
-            ORDER BY l.assignedToUserName
-            """)
-    List<Object[]> findDistinctAssignees(@Param("tenant") UUID tenant);
 }

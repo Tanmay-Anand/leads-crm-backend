@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,24 +31,28 @@ public class TemperatureController {
 
     @Operation(summary = "Get all temperatures for the current tenant")
     @GetMapping
+    @PreAuthorize("@permissionService.check('view', 'master-data/temperatures')")
     public ResponseEntity<List<TemperatureDto>> getAll() {
         return ResponseEntity.ok(temperatureService.getAll().stream().map(TemperatureDto::from).toList());
     }
 
     @Operation(summary = "Get a temperature by ID")
     @GetMapping("/{id}")
+    @PreAuthorize("@permissionService.check('view', 'master-data/temperatures')")
     public ResponseEntity<TemperatureDto> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(TemperatureDto.from(temperatureService.getById(id)));
     }
 
     @Operation(summary = "Create a new temperature")
     @PostMapping
+    @PreAuthorize("@permissionService.check('add', 'master-data/temperatures')")
     public ResponseEntity<TemperatureDto> add(@Valid @RequestBody TemperatureRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(TemperatureDto.from(temperatureService.add(request)));
     }
 
     @Operation(summary = "Update a temperature")
     @PutMapping("/{id}")
+    @PreAuthorize("@permissionService.check('update', 'master-data/temperatures')")
     public ResponseEntity<TemperatureDto> update(@PathVariable UUID id,
                                                  @Valid @RequestBody TemperatureRequest request) {
         return ResponseEntity.ok(TemperatureDto.from(temperatureService.update(id, request)));
@@ -55,6 +60,7 @@ public class TemperatureController {
 
     @Operation(summary = "Soft-delete a temperature")
     @DeleteMapping("/{id}")
+    @PreAuthorize("@permissionService.check('delete', 'master-data/temperatures')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         temperatureService.delete(id);
         return ResponseEntity.noContent().build();

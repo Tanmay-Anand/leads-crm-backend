@@ -146,6 +146,12 @@ public class HttpExceptionHandler {
             if (name.contains("uk_project_tenant_name")) {
                 return status(HttpStatus.CONFLICT, "A project with this name already exists.");
             }
+            if (name.contains("uk_user_tenant_email")) {
+                return status(HttpStatus.CONFLICT, "A user with this email already exists.");
+            }
+            if (name.contains("uk_role_tenant_name")) {
+                return status(HttpStatus.CONFLICT, "A role with this name already exists.");
+            }
             return status(HttpStatus.PRECONDITION_FAILED, "Invalid value for " + constraintName + ".");
         }
 

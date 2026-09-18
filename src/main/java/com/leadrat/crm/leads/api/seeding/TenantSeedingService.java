@@ -1,7 +1,11 @@
 package com.leadrat.crm.leads.api.seeding;
 
+import com.leadrat.crm.leads.api.auth.PermissionService;
+import com.leadrat.crm.leads.api.core.UserRole;
 import com.leadrat.crm.leads.api.leadstatus.LeadStatus;
 import com.leadrat.crm.leads.api.leadstatus.LeadStatusRepository;
+import com.leadrat.crm.leads.api.rbac.Role;
+import com.leadrat.crm.leads.api.rbac.RoleRepository;
 import com.leadrat.crm.leads.api.source.sourcecategory.CustomSourceCategory;
 import com.leadrat.crm.leads.api.source.sourcecategory.CustomSourceCategoryRepository;
 import com.leadrat.crm.leads.api.source.sourcetype.CustomSourceType;
@@ -41,6 +45,7 @@ public class TenantSeedingService {
     private final CustomTemperatureRepository temperatureRepository;
     private final CustomTagRepository tagRepository;
     private final LeadStatusRepository leadStatusRepository;
+    private final RoleRepository roleRepository;
 
     /**
      * Seeds the tenant if anything is missing.
@@ -56,7 +61,8 @@ public class TenantSeedingService {
         boolean needsSeeding = sourceCategoryRepository.findByTenant(tenantId).isEmpty()
                 || temperatureRepository.findByTenant(tenantId).isEmpty()
                 || tagRepository.findByTenant(tenantId).isEmpty()
-                || leadStatusRepository.findByTenantAndIsActiveTrueOrderByDisplayOrderAsc(tenantId).isEmpty();
+                || leadStatusRepository.findByTenantAndIsActiveTrueOrderByDisplayOrderAsc(tenantId).isEmpty()
+                || roleRepository.findByTenant(tenantId).isEmpty();
 
         if (needsSeeding) {
             log.info("[TenantSeeding] Seeding defaults for tenant {}", tenantId);
@@ -70,7 +76,39 @@ public class TenantSeedingService {
         seedTemperatures(tenantId);
         seedTags(tenantId);
         seedSourceTaxonomy(tenantId);
+        seedDefaultRoles(tenantId);
         log.info("[TenantSeeding] Done for tenant {}", tenantId);
+    }
+
+    // ─── Default roles ────────────────────────────────────────────────────────
+
+    /**
+     * Seeds the four system roles - existing tenants get them free on the next master-data
+     * read, no backfill script. Each named role's permission set is the same ceiling {@link
+     * PermissionService#deriveDefaultPermissions} computes for that {@link UserRole} at check
+     * time; seeding it as a real, visible {@link Role} row lets a tenant admin see and start
+     * from the default rather than only ever seeing custom roles in the list.
+     */
+    private void seedDefaultRoles(UUID tenantId) {
+        if (!roleRepository.findByTenant(tenantId).isEmpty()) {
+            return;
+        }
+        saveSystemRole(tenantId, "Tenant Admin", PermissionService.deriveDefaultPermissions(UserRole.TENANT_ADMIN));
+        saveSystemRole(tenantId, "Tenant User", PermissionService.deriveDefaultPermissions(UserRole.TENANT_USER));
+        saveSystemRole(tenantId, "Platform Admin", PermissionService.deriveDefaultPermissions(UserRole.PLATFORM_ADMIN));
+        saveSystemRole(tenantId, "Platform User", PermissionService.deriveDefaultPermissions(UserRole.PLATFORM_USER));
+    }
+
+    private void saveSystemRole(UUID tenantId, String name, List<String> permissions) {
+        if (roleRepository.existsByTenantAndNameIgnoreCase(tenantId, name)) {
+            return;
+        }
+        Role role = new Role();
+        role.tenant(tenantId);
+        role.setName(name);
+        role.setPermissions(permissions);
+        role.setSystem(true);
+        roleRepository.save(role);
     }
 
     // ─── Lead statuses ────────────────────────────────────────────────────────

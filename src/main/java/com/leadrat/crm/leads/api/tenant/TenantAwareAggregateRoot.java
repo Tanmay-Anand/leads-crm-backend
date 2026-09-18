@@ -45,6 +45,14 @@ public class TenantAwareAggregateRoot<A extends TenantAwareAggregateRoot<A>> ext
     @JdbcTypeCode(SqlTypes.VARCHAR)
     private UUID tenant;
 
+    protected TenantAwareAggregateRoot() {
+        super();
+    }
+
+    protected TenantAwareAggregateRoot(UUID givenId) {
+        super(givenId);
+    }
+
     /**
      * Sets the tenant ID for this entity.
      *
