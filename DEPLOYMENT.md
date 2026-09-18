@@ -1,7 +1,18 @@
 # Deployment
 
+> **The frontend has since moved from Amplify Hosting to Vercel** (a `vercel.json` proxying
+> `/leads-crm/*` straight to the host's IP now lives in `leads-crm-frontend`, and the live app is
+> served from a `*.vercel.app` domain). Everything below about the API side - EC2, ECR, SSM,
+> `docker compose`, RDS - is still accurate and is what this document mainly covers. The Amplify
+> sections further down (CORS-origin note, `provision-amplify.sh`, the Amplify environment
+> variable table) describe how the frontend *used to* be hosted; they have not been rewritten for
+> Vercel and should be treated as historical context, not instructions, until someone does that
+> pass. The API-side CORS step is the one piece of this that still matters either way: whatever
+> origin actually serves the frontend needs to be in `APP_CORS_ORIGINS` on the host.
+
 One environment, deploying from `main`. The API runs as a container on a single EC2 host behind
-nginx, against managed Postgres on RDS; the frontend is a static build on AWS Amplify Hosting.
+nginx, against managed Postgres on RDS; the frontend is a static build, previously on AWS Amplify
+Hosting, now on Vercel (see the note above).
 
 ```
 GitHub push to main

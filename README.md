@@ -1,16 +1,20 @@
 # Leads CRM API
 
-A reduced CRM backend covering three modules: **Leads**, **Projects** and **Channel Partners** —
-built by adapting the existing Leadrat services rather than designing something new.
+A CRM backend covering **Leads**, **Projects**, **Channel Partners**, **Meetings**, and **User
+Management with two-layer RBAC** — built by adapting the existing Leadrat services rather than
+designing something new.
 
 | Module | Adapted from |
 | --- | --- |
 | Lead, lead status, temperature, tag, source taxonomy | `builder-crm-pre-sales-api` |
 | Project | `builder-crm-platform-api` (`project` package) |
 | Channel Partner | `builder-crm-platform-api` (`channel/partner` package) |
+| User, Role, permission catalogue, Cognito provisioning | Ported from `builder-crm`'s RBAC model - see [Authorization](#authorization-rbac) below |
+| Lead meetings, reminder emails | New for this project |
 | Tenancy, search, exceptions, core entity bases | `builder-crm-pre-sales-api` |
 
-Spring Boot 4.1.0, Java 21, PostgreSQL, AWS Cognito.
+Spring Boot 4.1.0, Java 21, PostgreSQL, AWS Cognito. Also embeds `sales-sdk` (the AI Query SDK) as
+a library dependency - see [AI Query SDK](#ai-query-sdk-sales-sdk) below.
 
 ## Running it
 
@@ -73,6 +77,77 @@ server. Adding a field to `LeadFilterField` adds a control in the UI with no fro
 
 **Per-module layout** is `Entity`, `Repository`, `Service`, `ServiceImpl`, `Controller`, `dto/`.
 
+## Authorization (RBAC)
+
+Two layers, not one:
+
+- **Layer 1 - the Cognito group.** `UserRole` (`PLATFORM_ADMIN`, `PLATFORM_USER`, `TENANT_ADMIN`,
+  `TENANT_USER`) is the hard ceiling, resolved from the JWT's `cognito:groups` claim.
+- **Layer 2 - an optional tenant-defined custom `Role`.** A flat JSONB list of `action:resource`
+  strings (`api/rbac/CrmPermission` is the full catalogue). A `Role` can only **subtract** from
+  the ceiling Layer 1 already grants, never add to it - `PermissionService.deriveDefaultPermissions`
+  computes the ceiling, and `EffectivePermissionLoader` intersects a custom role's permissions
+  against it. A user with no custom role gets the full ceiling for their group.
+
+`User.id` **is** the Cognito `sub`, not a separate column - existing `Lead.assignedTo` values and
+`LeadScope.MINE` need no migration, and "is this me?" guards need no query. Users are provisioned
+in Cognito via `AdminCreateUser`/`AdminSetUserPassword`/`AdminEnableUser`/`AdminDisableUser`
+(`api/cognito/DefaultCognitoService`, `NoopCognitoService` as the local-dev fallback when no pool
+is configured) and mirrored in a local `crm."user"` row on the same write path.
+
+**Every controller carries exactly one guard** - either a role annotation
+(`@AuthenticatedOnly`/`@TenantAdminOnly`/etc., for endpoints with no resource permission of their
+own) or `@PreAuthorize("@permissionService.check('action', 'resource')")`. Stacking both on one
+method throws `AnnotationConfigurationException` *at first request*, not at startup - see
+`PermissionService`'s class doc. `ControllerGuardCoverageTest` reflects over every
+`@RestController` and fails the build if that invariant, or a `check(...)` call naming a
+permission absent from the catalogue, is ever violated.
+
+Six job-function system roles (Sales Agent, Presales Executive, Relationship Manager, Customer
+Service Representative, Channel Partner Representative, Team Manager) are seeded per tenant
+alongside the two ceiling roles (Tenant Admin, Tenant User) - **not** Platform Admin/Platform User,
+which are Leadrat's own cross-tenant staff identities and have no business being offered as an
+assignable "custom role" for a tenant's own employees.
+
+`view:ai-briefing` exists in the catalogue for the AI pre-meeting briefing feature
+(`pre-meeting-briefing-assistant`), modelling which roles are meant to see it - it is not yet
+enforced anywhere, since that feature lives in a separate app that only checks a shared bearer
+token today.
+
+## AI Query SDK (`sales-sdk`)
+
+`pom.xml` pulls in [`sales-sdk`](https://github.com/anshikleadrat/sales-sdk) (published as
+`ai-query-sdk`) as a library dependency, mounted directly inside this app rather than run
+separately. It adds:
+
+- A natural-language query endpoint (`/ai-sdk/query`) over this app's own JPA entities.
+- Meeting capture: a Google Calendar link plus a Recall.ai notetaker bot, with the transcript
+  stored against the lead.
+- WhatsApp chat context (Engageto), surfaced through `/ai-sdk/...` and consumed by the frontend's
+  WhatsApp Chat tab on a lead.
+
+It runs entirely in this process against this app's own `DataSource` (a private, enforced-read-only
+`EntityManagerFactory` - no separate database credentials), with its own tiny admin UI at
+`/ai-sdk/setup` → `/ai-sdk/auth` → `/ai-sdk/settings` → `/ai-sdk/configure` → `/ai-sdk/meetings` →
+`/ai-sdk/console`.
+
+**Dependency coordinate gotcha, already hit once:** `sales-sdk`'s own published Maven coordinates
+(`com.leadrat:ai-query-sdk`) point at a `distributionManagement` URL its publish workflow has never
+actually used - no version has ever been tagged/published there, and resolving it fails the build
+with "could not be found". The working coordinate is JitPack's, which builds straight from the
+source repo with no auth and no publish step:
+
+```xml
+<dependency>
+    <groupId>com.github.anshikleadrat</groupId>
+    <artifactId>sales-sdk</artifactId>
+    <version><!-- a full commit SHA - no tag exists yet --></version>
+</dependency>
+```
+
+Pin to a tag once one exists; a commit SHA is the safe default until then, since (unlike a floating
+branch) it cannot be redefined out from under this build.
+
 ## Deviations from the reference
 
 Each of these was a deliberate call; they are the places where this repo and the originals differ.
@@ -117,12 +192,24 @@ still has leads is refused in the service layer (409) rather than by the databas
 Display names (`channelPartnerName`, `assignedToUserName`, `telecallerName`) are denormalised onto
 the lead, as in the reference: they appear on every list row and are searchable scopes.
 
-### 5. There is no user module
+### 5. The user module now exists, and is not a straight port
 
-The reference resolves owners from a user service. Here the owner is a name typed on the form and
-stored on the lead, and the `users` filter dropdown is built from
-`LeadRepository.findDistinctAssignees` — the names already on leads. A user who has never held a
-lead is not offered as a filter value.
+`README.md` used to say outright that this CRM had no concept of a user - the lead owner was a
+name typed on the form, and the assignee filter dropdown was built from
+`LeadRepository.findDistinctAssignees` (the names already on leads, nothing more). That's been
+replaced by a real `User` module and the two-layer RBAC model described above, ported from
+`builder-crm`'s model but not copied as-is - see the porting spec's "Deviations from builder-crm"
+for the full list, the two structural ones being:
+
+- **`User.id` is the Cognito `sub`** (`builder-crm` has a separate id column plus a `cognitoSub`
+  column). Load-bearing for the reasons in [Authorization](#authorization-rbac).
+- **A custom role can only subtract from its holder's Cognito-group ceiling, never add to it.**
+  `builder-crm`'s reference model has no equivalent invariant, and its `TENANT_USER` default
+  includes `add:users` - letting a `TENANT_USER` create a `TENANT_ADMIN` and hand themselves the
+  keys. That default is not replicated here.
+
+The lead assignee dropdown (`LeadServiceImpl`'s `"users"` filter-option case) is now backed by
+real `User` rows instead of `findDistinctAssignees`, which has been deleted.
 
 ### 6. Trimmed from the lead module
 
@@ -149,6 +236,21 @@ fields, webhooks, caching, SQS and S3.
   validation is reattached explicitly.
 - Boot 4 dropped `spring-boot-starter-aop`, so `aspectjweaver` is declared directly.
 
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full picture: GitHub Actions builds and pushes to ECR,
+then deploys to a single EC2 host over SSM (`infra/prod/start.sh`). Two real bugs already hit here,
+worth knowing before touching either file again:
+
+- The `sales-sdk` dependency coordinate trap described above - it silently fails the *build*, not
+  the deploy, so it shows up as a `DependencyResolutionException` rather than an unhealthy
+  container.
+- An unconfigured mail sender previously failed Spring Boot's own health indicator, which made
+  `start.sh`'s health poll never succeed even though the app had booted fine and was actually
+  serving requests - fixed, but a reminder that "container won't report healthy" and "container
+  crashed" are different failure modes worth telling apart from the (deliberately short,
+  last-50-lines) logs `start.sh` prints on a failed deploy.
+
 ## Known environment issue
 
 On this machine the JVM cannot open the loopback socket Tomcat needs, and startup fails with
@@ -161,16 +263,32 @@ On this machine the JVM cannot open the loopback socket Tomcat needs, and startu
 ## Verified
 
 - `mvn compile` — clean.
-- Boots against the Docker Postgres; Hibernate creates all 11 tables in schema `crm`.
-- 42 endpoints across 9 tags published at `/v3/api-docs`.
-- Unauthenticated `/leads`, `/projects`, `/channel-partners` all return 401; docs and actuator are
-  public.
+- Boots against the Docker Postgres; Hibernate creates the full schema, including `crm."user"` and
+  `crm.role`, on `ddl-auto: update`.
+- Unauthenticated requests to every business endpoint return 401; docs and actuator stay public.
 - Cognito pool provisioned in `ap-south-1` by `scripts/provision-cognito.sh` and wired into `.env`
   (which is gitignored). The pool has the `custom:tenantId` attribute, the four role groups, a
   public app client with SRP and no secret, and one `TENANT_ADMIN` user carrying
   `custom:tenantId`.
 - CORS preflight from the Vite dev origin returns 200 with the matching
   `Access-Control-Allow-Origin`.
+- `ControllerGuardCoverageTest` passes: every `@RestController` handler has exactly one guard, and
+  every `@PreAuthorize("@permissionService.check(...)")` names a permission the catalogue actually
+  has.
+- End-to-end, locally: sign in as an existing `TENANT_ADMIN` with no local row yet → `/users/me`
+  JIT-provisions it; a tenant not yet seeded gets the two ceiling roles plus the six job-function
+  roles on the next master-data read; role/permission changes apply within the cache's 60s window
+  (immediately after the eviction event, in practice); a disabled action re-enabled in devtools
+  still gets a real 403 from the backend, not just a hidden frontend button.
 
-Business flows behind authentication have not been exercised end-to-end: the first user is in
-`FORCE_CHANGE_PASSWORD`, and only the account owner has the temporary password.
+**Known gap, not yet fixed:** creating a user, resetting a password, or enabling/disabling one all
+call Cognito Admin APIs, which need AWS credentials with access to the pool in `.env`
+(`AWS_COGNITO_USER_POOL_ID`). Whoever's credentials are active on the machine running this app -
+locally via the default credential chain, or the EC2 instance role in production - must actually
+have permission to call `AdminCreateUser`/`AdminSetUserPassword`/`AdminEnableUser`/
+`AdminDisableUser`/`AdminAddUserToGroup`/`AdminRemoveUserFromGroup` scoped to that pool.
+`scripts/grant-cognito-admin.sh` grants exactly that to the production instance role; the
+equivalent for local dev is making sure whoever's running this has a working AWS profile for the
+account that owns the pool - a `ResourceNotFoundException: User pool ... does not exist` on any of
+those calls means the active credentials belong to the wrong AWS account, not that the pool ID is
+wrong.
