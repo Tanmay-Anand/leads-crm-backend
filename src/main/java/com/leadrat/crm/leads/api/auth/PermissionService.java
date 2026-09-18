@@ -132,9 +132,17 @@ public class PermissionService {
         List<String> all = new ArrayList<>(CrmPermission.ALL);
         return switch (role) {
             case PLATFORM_ADMIN, TENANT_ADMIN -> all;
-            case PLATFORM_USER, TENANT_USER -> all.stream()
+            case TENANT_USER -> all.stream()
                     .filter(p -> !p.startsWith("delete:"))
                     .filter(p -> !p.equals("add:users"))
+                    .collect(Collectors.toList());
+            // Leadrat's own cross-tenant platform staff, not a tenant's lead-facing team - never
+            // has a customer meeting to brief, so it is excluded even though every other view:*
+            // permission is available to it same as TENANT_USER.
+            case PLATFORM_USER -> all.stream()
+                    .filter(p -> !p.startsWith("delete:"))
+                    .filter(p -> !p.equals("add:users"))
+                    .filter(p -> !p.equals("view:ai-briefing"))
                     .collect(Collectors.toList());
         };
     }

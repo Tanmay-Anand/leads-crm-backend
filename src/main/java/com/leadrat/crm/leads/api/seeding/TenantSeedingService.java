@@ -62,7 +62,11 @@ public class TenantSeedingService {
                 || temperatureRepository.findByTenant(tenantId).isEmpty()
                 || tagRepository.findByTenant(tenantId).isEmpty()
                 || leadStatusRepository.findByTenantAndIsActiveTrueOrderByDisplayOrderAsc(tenantId).isEmpty()
-                || roleRepository.findByTenant(tenantId).isEmpty();
+                || roleRepository.findByTenant(tenantId).isEmpty()
+                // Named individually, not just "some role exists": a tenant already fully seeded
+                // before these job-function roles were added would otherwise never see this branch
+                // run again, since every other condition above is already satisfied.
+                || !roleRepository.existsByTenantAndNameIgnoreCase(tenantId, "Sales Agent");
 
         if (needsSeeding) {
             log.info("[TenantSeeding] Seeding defaults for tenant {}", tenantId);
@@ -83,20 +87,42 @@ public class TenantSeedingService {
     // ─── Default roles ────────────────────────────────────────────────────────
 
     /**
-     * Seeds the four system roles - existing tenants get them free on the next master-data
-     * read, no backfill script. Each named role's permission set is the same ceiling {@link
-     * PermissionService#deriveDefaultPermissions} computes for that {@link UserRole} at check
-     * time; seeding it as a real, visible {@link Role} row lets a tenant admin see and start
-     * from the default rather than only ever seeing custom roles in the list.
+     * Seeds the system roles - existing tenants get any newly-added ones free on the next
+     * master-data read, no backfill script. Each of the four ceiling roles' permission set is the
+     * same one {@link PermissionService#deriveDefaultPermissions} computes for that {@link
+     * UserRole} at check time; seeding it as a real, visible {@link Role} row lets a tenant admin
+     * see and start from the default rather than only ever seeing custom roles in the list.
+     *
+     * <p>Only the two tenant-side ceilings get this treatment. {@code PLATFORM_ADMIN}/{@code
+     * PLATFORM_USER} are Leadrat's own cross-tenant staff, never a tenant's own employee - showing
+     * them as pickable "custom role" options on this tenant's own Users tab would let an admin
+     * assign a role named after an identity that has nothing to do with their organisation.
+     *
+     * <p>No longer short-circuits on "the tenant already has some role" - {@link #saveSystemRole}
+     * is already idempotent per name, and that shortcut meant a tenant seeded before a new system
+     * role was added here (as when the six job-function roles below were introduced) would never
+     * receive it.
      */
     private void seedDefaultRoles(UUID tenantId) {
-        if (!roleRepository.findByTenant(tenantId).isEmpty()) {
-            return;
-        }
         saveSystemRole(tenantId, "Tenant Admin", PermissionService.deriveDefaultPermissions(UserRole.TENANT_ADMIN));
         saveSystemRole(tenantId, "Tenant User", PermissionService.deriveDefaultPermissions(UserRole.TENANT_USER));
-        saveSystemRole(tenantId, "Platform Admin", PermissionService.deriveDefaultPermissions(UserRole.PLATFORM_ADMIN));
-        saveSystemRole(tenantId, "Platform User", PermissionService.deriveDefaultPermissions(UserRole.PLATFORM_USER));
+        seedJobFunctionRoles(tenantId);
+    }
+
+    /**
+     * The job functions named as this tenant's intended users of the AI pre-meeting briefing
+     * feature (LeadBrief) - narrower than the bare "Tenant User" default, which already has
+     * {@code view:ai-briefing} itself; these exist so an admin can assign a structured, minimal
+     * role to staff in one of these functions instead of the full Tenant User default.
+     */
+    private void seedJobFunctionRoles(UUID tenantId) {
+        saveSystemRole(tenantId, "Sales Agent", List.of("view:leads", "view:ai-briefing"));
+        saveSystemRole(tenantId, "Presales Executive", List.of("view:leads", "view:ai-briefing"));
+        saveSystemRole(tenantId, "Relationship Manager", List.of("view:leads", "view:ai-briefing"));
+        saveSystemRole(tenantId, "Customer Service Representative", List.of("view:leads", "view:ai-briefing"));
+        saveSystemRole(tenantId, "Channel Partner Representative",
+                List.of("view:leads", "view:channel-partners", "view:ai-briefing"));
+        saveSystemRole(tenantId, "Team Manager", List.of("view:leads", "update:leads", "view:ai-briefing"));
     }
 
     private void saveSystemRole(UUID tenantId, String name, List<String> permissions) {

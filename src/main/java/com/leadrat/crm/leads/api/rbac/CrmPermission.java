@@ -37,6 +37,13 @@ public final class CrmPermission {
         catalog.put("master-data/temperatures", List.of("view", "add", "update", "delete"));
         catalog.put("master-data/sources", List.of("view", "add", "update", "delete"));
 
+        // The AI pre-meeting briefing feature (LeadBrief) lives in a separate app (backend/leadlens
+        // + the Chrome extension) that does not check per-user permissions yet - it currently gates
+        // only on a shared bearer token. This entry models which of a tenant's own roles are meant
+        // to see a lead's briefing, ready for that app to check once it integrates against this
+        // catalogue; it is not yet enforced anywhere on its own.
+        catalog.put("ai-briefing", List.of("view"));
+
         CATALOG = Collections.unmodifiableMap(catalog);
 
         Set<String> all = new LinkedHashSet<>();
