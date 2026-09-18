@@ -52,6 +52,11 @@ REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 # costs at most a re-login to the in-CRM AI widget. Pass AI_SDK_JWT_SECRET to keep one stable.
 AI_SDK_JWT_SECRET="${AI_SDK_JWT_SECRET:-$(openssl rand -hex 32)}"
 
+# A fixed OTP keeps the one-time setup token stable across reboots and volume wipes. Without it
+# the SDK generates a random OTP each boot, which is printed to the logs and must be collected
+# before the /ai-sdk/setup exchange can happen. A stable value here means the OTP never rotates.
+AI_SDK_OTP="${AI_SDK_OTP:-$(openssl rand -base64 10 | tr -dc 'A-Z0-9' | head -c 10)}"
+
 # An OpenRouter account credential, so it can only come from the operator. The placeholder is
 # deliberately a working default: the API boots and every CRM endpoint behaves, and only the AI
 # query widget fails, at call time rather than at startup.
@@ -93,6 +98,7 @@ APP_CORS_ORIGINS=${APP_CORS_ORIGINS}
 # ai-sdk. The first two are mandatory: application.yaml defaults neither, so the container
 # exits on boot if either is missing, and nginx then answers 502 with no upstream.
 AI_SDK_JWT_SECRET=${AI_SDK_JWT_SECRET}
+AI_SDK_OTP=${AI_SDK_OTP}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
 AI_SDK_ALLOWED_ORIGIN=${AI_SDK_ALLOWED_ORIGIN}
 ENVFILE

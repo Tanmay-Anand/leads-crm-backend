@@ -32,6 +32,7 @@ services:
       # without them and nginx answers 502 with no upstream. `environment:` here is an allowlist,
       # so putting them in .env alone does nothing — they have to be named here as well.
       AI_SDK_JWT_SECRET: ${AI_SDK_JWT_SECRET}
+      AI_SDK_OTP: ${AI_SDK_OTP:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       AI_SDK_ALLOWED_ORIGIN: ${AI_SDK_ALLOWED_ORIGIN:-}
       AI_SDK_SQLITE_PATH: /data/ai-sdk/sdk-config.db

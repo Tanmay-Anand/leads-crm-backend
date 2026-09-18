@@ -48,6 +48,7 @@ ai-sdk:
   security:
     jwt-secret: ${AI_SDK_JWT_SECRET}
     jwt-expiry-minutes: 60
+    otp: ${AI_SDK_OTP:}
     allowed-origins:
       - ${AI_SDK_ALLOWED_ORIGIN:http://localhost:5173}
   storage:
