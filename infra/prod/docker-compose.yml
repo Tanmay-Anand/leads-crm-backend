@@ -27,6 +27,23 @@ services:
       # Unused when the frontend reaches the API through the Amplify proxy, since those requests
       # are same-origin. Kept so switching to a direct CloudFront origin needs no file changes.
       APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-}
+      # ai-sdk. This block is not optional: AI_SDK_JWT_SECRET and OPENROUTER_API_KEY are the only
+      # two placeholders in application.yaml with no default, so the container exits on boot
+      # without them and nginx answers 502 with no upstream. `environment:` here is an allowlist,
+      # so putting them in .env alone does nothing — they have to be named here as well.
+      AI_SDK_JWT_SECRET: ${AI_SDK_JWT_SECRET}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      AI_SDK_ALLOWED_ORIGIN: ${AI_SDK_ALLOWED_ORIGIN:-}
+      AI_SDK_SQLITE_PATH: /data/ai-sdk/sdk-config.db
+      # The model names and the licence key are deliberately NOT forwarded. They are defaulted in
+      # application.yaml, and an absent key here would arrive as an empty string, which Spring
+      # treats as a set value and so silently overrides the default with "". Add one back only
+      # alongside a real value in .env.
+    volumes:
+      # The ai-sdk admin password, set once through the /ai-sdk/setup OTP exchange, lives in this
+      # SQLite file. Inside the container it would be destroyed by every deploy, which silently
+      # re-runs first-boot setup and invalidates the password the LeadLens adapter holds.
+      - ai-sdk-data:/data/ai-sdk
     # Only nginx should reach the app.
     expose:
       - "8090"
@@ -59,3 +76,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+volumes:
+  ai-sdk-data:

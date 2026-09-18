@@ -99,14 +99,14 @@ aws ssm start-session --target <instance-id> --profile personal --region ap-sout
 | --- | --- |
 | `AWS_DEPLOY_ROLE_ARN` | printed by `provision-infra.sh` |
 | `EC2_INSTANCE_ID` | printed by `provision-infra.sh` |
-| `SERVICE_URL` | the CloudFront URL, printed by `provision-cloudfront.sh` |
+| `SERVICE_URL` | the host's own origin, `http://<elastic-ip>`, printed by `provision-infra.sh`. It is only the CloudFront URL from `provision-cloudfront.sh` on an account that can actually create distributions — see the Amplify note above |
 
 **6. Amplify Hosting** — see [the frontend README](../leads-crm-frontend/README.md#deployment),
 or `scripts/provision-amplify.sh` for the CLI path. Environment variables to set on the app:
 
 | Variable | Value |
 | --- | --- |
-| `VITE_SERVER_URL` | the CloudFront URL |
+| `VITE_SERVER_URL` | leave unset in the Amplify-proxy setup — the bundle calls `/leads-crm` on its own origin and Amplify rewrites it to the host. Set it to the CloudFront URL only under `API_MODE=direct` |
 | `VITE_DOMAIN` | the Amplify URL |
 | `VITE_AWS_COGNITO_USER_POOL_ID` | from `provision-cognito.sh` |
 | `VITE_AWS_COGNITO_USER_POOL_CLIENT_ID` | from `provision-cognito.sh` |

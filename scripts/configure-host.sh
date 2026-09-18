@@ -45,6 +45,22 @@ CLIENT_ID="$(aws cognito-idp list-user-pool-clients --region "$REGION" --user-po
 
 REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
+# ai-sdk needs two values that application.yaml gives no default, so the container exits on boot
+# without them. Neither is discoverable from AWS the way everything above is.
+#
+# The JWT secret only signs the SDK's own 60-minute tokens, so generating a fresh one per run
+# costs at most a re-login to the in-CRM AI widget. Pass AI_SDK_JWT_SECRET to keep one stable.
+AI_SDK_JWT_SECRET="${AI_SDK_JWT_SECRET:-$(openssl rand -hex 32)}"
+
+# An OpenRouter account credential, so it can only come from the operator. The placeholder is
+# deliberately a working default: the API boots and every CRM endpoint behaves, and only the AI
+# query widget fails, at call time rather than at startup.
+OPENROUTER_API_KEY="${OPENROUTER_API_KEY:-unset-ai-query-disabled}"
+
+# The SDK's own CORS check, which is separate from APP_CORS_ORIGINS and defaults to
+# http://localhost:5173. Set it to the Amplify origin to use the widget from the deployed UI.
+AI_SDK_ALLOWED_ORIGIN="${AI_SDK_ALLOWED_ORIGIN:-}"
+
 echo "Host:     ${INSTANCE_ID}"
 echo "Database: ${ENDPOINT}"
 echo "Pool:     ${POOL_ID}"
@@ -67,6 +83,12 @@ AWS_COGNITO_CLIENT_ID=${CLIENT_ID}
 # Empty while the frontend reaches the API through the Amplify proxy: those requests are
 # same-origin, so CORS never applies. Set it if you move to a direct CloudFront origin.
 APP_CORS_ORIGINS=
+
+# ai-sdk. The first two are mandatory: application.yaml defaults neither, so the container
+# exits on boot if either is missing, and nginx then answers 502 with no upstream.
+AI_SDK_JWT_SECRET=${AI_SDK_JWT_SECRET}
+OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+AI_SDK_ALLOWED_ORIGIN=${AI_SDK_ALLOWED_ORIGIN}
 ENVFILE
 )"
 
