@@ -1,6 +1,6 @@
 # Leads CRM API
 
-A reduced CRM backend covering three modules — **Leads**, **Projects** and **Channel Partners** —
+A reduced CRM backend covering three modules: **Leads**, **Projects** and **Channel Partners** —
 built by adapting the existing Leadrat services rather than designing something new.
 
 | Module | Adapted from |
