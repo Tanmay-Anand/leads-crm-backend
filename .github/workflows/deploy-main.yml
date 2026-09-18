@@ -95,15 +95,37 @@ jobs:
 
           echo "SSM command ${COMMAND_ID}"
 
-          # send-command is asynchronous; without this the workflow would report success before
-          # the container had even been pulled.
-          aws ssm wait command-executed \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}" || true
+          # send-command is asynchronous, so the deploy can only be judged once the invocation
+          # reaches a terminal state.
+          #
+          # `aws ssm wait command-executed` cannot do that job here: its waiter is a fixed 20
+          # attempts at 5s apart, so it gives up after 100 seconds. The host needs far longer —
+          # `docker compose pull` of the API image, then start.sh, which alone polls the
+          # container's health for up to 40 x 5s = 200s. The waiter therefore expired mid-deploy
+          # on essentially every run, leaving Status=InProgress and StandardOutput/ErrorContent
+          # empty (SSM only returns output once the command has finished). That read as a silent
+          # host failure when the host had not actually finished, let alone failed.
+          #
+          # Poll for a genuinely terminal state instead, with a budget well clear of the host's
+          # own worst case. Keep POLL_BUDGET_SECONDS above start.sh's health wait plus pull time
+          # if either of those ever grows.
+          POLL_BUDGET_SECONDS=900
+          DEADLINE=$(( SECONDS + POLL_BUDGET_SECONDS ))
+          STATUS=Pending
 
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
-            --query 'Status' --output text)
+          while [ "${SECONDS}" -lt "${DEADLINE}" ]; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
+              --query 'Status' --output text)
+
+            # Everything else (Pending, InProgress, Delayed, Cancelling) is still running.
+            case "${STATUS}" in
+              Success|Failed|Cancelled|TimedOut) break ;;
+            esac
+
+            echo "  ${STATUS}... (${SECONDS}s elapsed)"
+            sleep 10
+          done
 
           echo "--- host output ---"
           aws ssm get-command-invocation \
@@ -115,6 +137,19 @@ jobs:
             aws ssm get-command-invocation \
               --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}" \
               --query 'StandardErrorContent' --output text
+
+            # If the budget ran out the command is still executing on the host. Leaving it there
+            # would let a retry run concurrently with it — two deploys rewriting .env and racing
+            # docker compose on the same host. Cancel it so a retry starts from a clean slate.
+            case "${STATUS}" in
+              Success|Failed|Cancelled|TimedOut) ;;
+              *)
+                echo "Still ${STATUS} after ${POLL_BUDGET_SECONDS}s — cancelling the host command."
+                aws ssm cancel-command \
+                  --command-id "${COMMAND_ID}" --instance-ids "${INSTANCE_ID}" || true
+                ;;
+            esac
+
             echo "Deploy command finished with status ${STATUS}"
             exit 1
           fi
@@ -122,8 +157,19 @@ jobs:
       # The container starting is not the same as the service working: this only passes once
       # Spring reports UP, which includes the database being reachable.
       - name: Post-deploy health check
+        env:
+          SERVICE_URL: ${{ secrets.SERVICE_URL }}
         run: |
-          URL="${{ secrets.SERVICE_URL }}/leads-crm/actuator/health"
+          # An unset secret would otherwise silently become "/leads-crm/actuator/health", which
+          # curl rejects 30 times over five minutes before the step finally fails for a reason
+          # the log never states. Note SERVICE_URL is the host's own origin (see DEPLOYMENT.md):
+          # the CloudFront URL this once referred to cannot be created on an unverified account.
+          if [ -z "${SERVICE_URL}" ]; then
+            echo "The SERVICE_URL repository secret is not set — nothing to health check." >&2
+            exit 1
+          fi
+
+          URL="${SERVICE_URL}/leads-crm/actuator/health"
           echo "Checking health at $URL"
 
           for i in $(seq 1 30); do
