@@ -19,7 +19,7 @@ spring:
           batch_size: 50
 
   datasource:
-    url: jdbc:postgresql://localhost:${APP_DB_PORT:5433}/leads-crm?stringtype=unspecified&ApplicationName=leads-crm&currentSchema=crm
+    url: jdbc:postgresql://${APP_DB_HOST:localhost}:${APP_DB_PORT:5433}/${APP_DB_NAME:leads-crm}?stringtype=unspecified&ApplicationName=leads-crm&currentSchema=crm&sslmode=${APP_DB_SSLMODE:prefer}
     username: ${APP_DB_USERNAME:postgres}
     password: ${APP_DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
@@ -70,6 +70,8 @@ ai-sdk:
     api-key: ${OPENROUTER_API_KEY}
     planner-model: ${AI_SDK_LLM_PLANNER_MODEL:anthropic/claude-sonnet-4.5}
     summarizer-model: ${AI_SDK_LLM_SUMMARIZER_MODEL:anthropic/claude-sonnet-4.5}
+  whatsapp:
+    api-key: ${ENGAGETO_API_KEY:}
   license:
     key: ${AI_SDK_LICENSE_KEY:}
 
